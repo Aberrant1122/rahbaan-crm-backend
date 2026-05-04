@@ -208,32 +208,6 @@ const startServer = async () => {
                 }
             }
 
-            // EMERGENCY: Ensure google_oauth_tokens table exists (Railway fix)
-            console.log('🔄 Ensuring google_oauth_tokens table exists...');
-            try {
-                const { pool } = require('./src/config/database');
-                await pool.execute(`
-                    CREATE TABLE IF NOT EXISTS google_oauth_tokens (
-                        id INT AUTO_INCREMENT PRIMARY KEY,
-                        user_id INT NOT NULL UNIQUE,
-                        google_email VARCHAR(255) NOT NULL,
-                        access_token TEXT NOT NULL,
-                        refresh_token TEXT NULL,
-                        scope TEXT NULL,
-                        token_type VARCHAR(50) NULL,
-                        expiry_date BIGINT NULL,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                        CONSTRAINT fk_google_oauth_user_id 
-                            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-                        INDEX idx_google_oauth_user_id (user_id),
-                        INDEX idx_google_oauth_expiry (expiry_date)
-                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-                `);
-                console.log('✅ google_oauth_tokens table ensured');
-            } catch (oauthTableError) {
-                console.warn('⚠️  Could not create google_oauth_tokens table:', oauthTableError.message);
-            }
         }
 
         // Start server regardless of migration status
