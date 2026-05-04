@@ -142,17 +142,17 @@ exports.getKPIs = async (req, res) => {
             AND YEAR(created_at) = YEAR(DATE_SUB(CURDATE(), INTERVAL 1 MONTH))
         `);
 
-        const current = currentMonthStats[0];
-        const previous = previousMonthStats[0];
+        const current = currentMonthStats[0] || { total_leads: 0, won_leads: 0, active_deals: 0 };
+        const previous = previousMonthStats[0] || { total_leads: 0, won_leads: 0, active_deals: 0 };
 
         // Calculate changes
-        const leadsChange = previous.total_leads > 0 
-            ? (((current.total_leads - previous.total_leads) / previous.total_leads) * 100).toFixed(1)
+        const leadsChange = (previous.total_leads || 0) > 0 
+            ? ((( (current.total_leads || 0) - (previous.total_leads || 0)) / (previous.total_leads || 0)) * 100).toFixed(1)
             : 0;
 
         const avgDealSize = 8500;
-        const currentRevenue = current.won_leads * avgDealSize;
-        const previousRevenue = previous.won_leads * avgDealSize;
+        const currentRevenue = (current.won_leads || 0) * avgDealSize;
+        const previousRevenue = (previous.won_leads || 0) * avgDealSize;
         const revenueChange = previousRevenue > 0 
             ? (((currentRevenue - previousRevenue) / previousRevenue) * 100).toFixed(1)
             : 0;
@@ -183,8 +183,8 @@ exports.getKPIs = async (req, res) => {
             ? (((parseFloat(conversionRate) - prevConversionRate) / prevConversionRate) * 100).toFixed(1)
             : 0;
 
-        const dealsChange = previous.active_deals > 0 
-            ? (((current.active_deals - previous.active_deals) / previous.active_deals) * 100).toFixed(1)
+        const dealsChange = (previous.active_deals || 0) > 0 
+            ? ((( (current.active_deals || 0) - (previous.active_deals || 0)) / (previous.active_deals || 0)) * 100).toFixed(1)
             : 0;
 
         // Get total leads count
@@ -211,7 +211,7 @@ exports.getKPIs = async (req, res) => {
             },
             {
                 title: 'Active Deals',
-                value: current.active_deals.toString(),
+                value: (current.active_deals || 0).toString(),
                 change: `${dealsChange >= 0 ? '+' : ''}${dealsChange}%`,
                 trend: dealsChange >= 0 ? 'up' : 'down'
             }
