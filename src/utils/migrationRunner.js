@@ -93,6 +93,11 @@ class MigrationRunner {
                 try {
                     await pool.execute(statement);
                 } catch (error) {
+                    // Ignore "Duplicate column name" (1060) and "Duplicate key name" (1061)
+                    if (error.errno === 1060 || error.errno === 1061) {
+                        console.warn(`⚠️  Statement in ${filename} already applied: ${error.message}`);
+                        continue;
+                    }
                     console.error(`❌ Failed to execute statement in ${filename}:`);
                     console.error(`SQL: ${statement.substring(0, 100)}...`);
                     throw error;
