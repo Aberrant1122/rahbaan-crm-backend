@@ -8,43 +8,41 @@ exports.getPipelineData = async (req, res) => {
     try {
         const stages = ['New', 'Incoming', 'Contacted', 'Qualified', 'Proposal', 'Second Wing', 'Won', 'Lost'];
         
-        const query = `
-            SELECT 
-                stage,
-                COUNT(*) as count,
-                JSON_ARRAYAGG(
-                    JSON_OBJECT(
-                        'id', id,
-                        'name', name,
-                        'phone', phone,
-                        'email', email,
-                        'source', source,
-                        'last_message', last_message,
-                        'last_message_at', last_message_at,
-                        'created_at', created_at,
-                        'updated_at', updated_at
-                    )
-                ) as leads
-            FROM leads
-            GROUP BY stage
-        `;
-
-        const [results] = await pool.query(query);
+        // Fetch all leads
+        const query = 'SELECT * FROM leads ORDER BY updated_at DESC';
+        const [leads] = await pool.query(query);
         
-        // Create a map of stage to leads
+        // Group leads by stage in JavaScript for better compatibility
         const stageMap = {};
-        results.forEach(row => {
-            stageMap[row.stage] = {
-                count: row.count,
-                leads: row.leads || []
+        stages.forEach(stage => {
+            stageMap[stage] = {
+                count: 0,
+                leads: []
             };
         });
 
-        // Ensure all stages are present, even if empty
+        leads.forEach(lead => {
+            const stage = lead.stage;
+            if (stageMap[stage]) {
+                stageMap[stage].leads.push(lead);
+                stageMap[stage].count++;
+            } else {
+                // If stage is not in our predefined list, maybe it's a legacy stage
+                // We can either ignore it or add it to a "General" or existing stage
+                // For safety, let's just make sure we handle the 'New Leads' vs 'New' case if it exists
+                const normalizedStage = stage === 'New Leads' ? 'New' : stage;
+                if (stageMap[normalizedStage]) {
+                    stageMap[normalizedStage].leads.push(lead);
+                    stageMap[normalizedStage].count++;
+                }
+            }
+        });
+
+        // Convert map to final array structure
         const pipelineData = stages.map(stage => ({
             stage: stage,
-            count: stageMap[stage]?.count || 0,
-            leads: stageMap[stage]?.leads || []
+            count: stageMap[stage].count,
+            leads: stageMap[stage].leads
         }));
 
         res.json({
