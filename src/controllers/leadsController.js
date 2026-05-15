@@ -121,7 +121,7 @@ exports.getLeadById = async (req, res) => {
 
         res.json({
             success: true,
-            data: lead
+            lead
         });
     } catch (error) {
         console.error('Error fetching lead:', error);

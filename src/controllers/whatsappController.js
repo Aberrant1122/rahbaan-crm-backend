@@ -1,5 +1,4 @@
 const Lead = require('../models/Lead');
-const whatsappService = require('../services/whatsappService');
 
 /**
  * GET /api/webhook/whatsapp
@@ -36,76 +35,158 @@ const receiveMessage = async (req, res) => {
 
         console.log('📨 Incoming webhook:', JSON.stringify(body, null, 2));
 
-        // Check if this is a WhatsApp message event
-        if (body.object !== 'whatsapp_business_account') {
-            console.log('⚠️ Not a WhatsApp business account event');
-            return;
-        }
-
-        // Extract message data
-        const entry = body.entry?.[0];
-        const changes = entry?.changes?.[0];
-        const value = changes?.value;
-
-        if (!value?.messages || value.messages.length === 0) {
-            console.log('⚠️ No messages in webhook payload');
-            return;
-        }
-
-        const message = value.messages[0];
-        const contact = value.contacts?.[0];
-
-        // Extract message details
-        const messageId = message.id;
-        const from = message.from; // Phone number with country code
-        const messageType = message.type;
-        const timestamp = message.timestamp;
-
-        // Extract message text based on type
-        let messageText = '';
-        if (messageType === 'text') {
-            messageText = message.text?.body || '';
-        } else if (messageType === 'image') {
-            messageText = `[Image] ${message.image?.caption || 'No caption'}`;
-        } else if (messageType === 'document') {
-            messageText = `[Document] ${message.document?.filename || 'No filename'}`;
-        } else if (messageType === 'audio') {
-            messageText = '[Audio message]';
-        } else if (messageType === 'video') {
-            messageText = `[Video] ${message.video?.caption || 'No caption'}`;
+        // Check event type
+        if (body.object === 'whatsapp_business_account') {
+            return await handleWhatsAppEvent(body, res);
+        } else if (body.object === 'page') {
+            return await handleMetaLeadGenEvent(body, res);
         } else {
-            messageText = `[${messageType} message]`;
+            console.log('⚠️ Unknown webhook object type:', body.object);
+            return;
         }
-
-        // Extract contact name
-        const contactName = contact?.profile?.name || from;
-
-        console.log('📱 Message details:', {
-            from,
-            name: contactName,
-            type: messageType,
-            text: messageText,
-            messageId
-        });
-
-        // Process the message and update/create lead
-        await processIncomingMessage({
-            phone: from,
-            name: contactName,
-            messageText,
-            messageId,
-            messageType,
-            timestamp
-        });
-
-        // Mark message as read (optional)
-        await whatsappService.markAsRead(messageId);
-
     } catch (error) {
         console.error('❌ Error processing webhook:', error);
-        // Don't send error response as we already sent 200
     }
 };
+
+/**
+ * Handle WhatsApp events
+ */
+async function handleWhatsAppEvent(body, res) {
+    // Extract message data
+    const entry = body.entry?.[0];
+    const changes = entry?.changes?.[0];
+    const value = changes?.value;
+
+    if (!value?.messages || value.messages.length === 0) {
+        console.log('⚠️ No messages in WhatsApp webhook payload');
+        return;
+    }
+
+    const message = value.messages[0];
+    const contact = value.contacts?.[0];
+
+    // Extract message details
+    const messageId = message.id;
+    const from = message.from; // Phone number with country code
+    const messageType = message.type;
+    const timestamp = message.timestamp;
+
+    // Extract message text based on type
+    let messageText = '';
+    if (messageType === 'text') {
+        messageText = message.text?.body || '';
+    } else if (messageType === 'image') {
+        messageText = `[Image] ${message.image?.caption || 'No caption'}`;
+    } else if (messageType === 'document') {
+        messageText = `[Document] ${message.document?.filename || 'No filename'}`;
+    } else if (messageType === 'audio') {
+        messageText = '[Audio message]';
+    } else if (messageType === 'video') {
+        messageText = `[Video] ${message.video?.caption || 'No caption'}`;
+    } else {
+        messageText = `[${messageType} message]`;
+    }
+
+    // Extract contact name
+    const contactName = contact?.profile?.name || from;
+
+    console.log('📱 WhatsApp Message:', { from, name: contactName, text: messageText });
+
+    // Process the message and update/create lead
+    await processIncomingMessage({
+        phone: from,
+        name: contactName,
+        messageText,
+        messageId,
+        messageType,
+        timestamp
+    });
+}
+
+/**
+ * Handle Facebook/Instagram LeadGen events
+ */
+async function handleMetaLeadGenEvent(body, res) {
+    const entry = body.entry?.[0];
+    const changes = entry?.changes?.[0];
+    const value = changes?.value;
+
+    if (changes?.field !== 'leadgen') {
+        console.log('⚠️ Not a leadgen event:', changes?.field);
+        return;
+    }
+
+    const leadId = value.leadgen_id;
+    const formId = value.form_id;
+    const pageId = value.page_id;
+
+    console.log(`📣 New Meta Lead Notification: Lead ID ${leadId} from Form ${formId}`);
+
+    // Process the lead (fetch details and save)
+    await processMetaLead(leadId);
+}
+
+/**
+ * Fetch lead details from Meta and save to CRM
+ */
+async function processMetaLead(leadId) {
+    const metaLeadService = require('../services/metaLeadService');
+    
+    try {
+        // 1. Fetch details from Meta
+        const leadDetails = await metaLeadService.getLeadDetails(leadId);
+        
+        const { name, email, phone, platform } = leadDetails;
+        const source = metaLeadService.getSourceFromPlatform(platform);
+
+        if (!phone) {
+            console.warn(`⚠️ Lead ${leadId} has no phone number, skipping auto-ingestion.`);
+            return;
+        }
+
+        // 2. Check if lead exists
+        let lead = await Lead.findByPhone(phone);
+
+        if (lead) {
+            console.log(`📋 Existing lead found for Meta lead: ${lead.name} (ID: ${lead.id})`);
+            
+            // Update lead info if needed
+            await Lead.update(lead.id, {
+                last_message: `New lead submission from ${source}`,
+                email: email || lead.email
+            });
+
+            // Add timeline entry
+            await Lead.addTimelineEntry(lead.id, {
+                event_type: 'note_added',
+                description: `New lead form submission received from ${source}`,
+                metadata: { lead_details: leadDetails, form_id: leadDetails.form_id }
+            });
+        } else {
+            console.log(`✨ Creating new lead from ${source}: ${name}`);
+
+            // 3. Create new lead
+            const newLeadId = await Lead.create({
+                name: name || 'Meta Lead',
+                phone: phone,
+                email: email || null,
+                stage: 'Incoming',
+                source: source,
+                last_message: `Initial lead submission from ${source}`
+            });
+
+            // 4. Add creation timeline entry
+            await Lead.addTimelineEntry(newLeadId, {
+                event_type: 'note_added',
+                description: `Lead automatically ingested from ${source} Lead Ads`,
+                metadata: { lead_details: leadDetails }
+            });
+        }
+    } catch (error) {
+        console.error('❌ Error processing Meta lead:', error);
+    }
+}
 
 /**
  * Process incoming message and update lead
@@ -178,25 +259,9 @@ async function processIncomingMessage(data) {
 
         console.log(`✅ Lead processed successfully: ${lead.name} (ID: ${lead.id})`);
 
-        // Optional: Send auto-reply
-        // await sendAutoReply(phone, name);
-
     } catch (error) {
         console.error('❌ Error processing incoming message:', error);
         throw error;
-    }
-}
-
-/**
- * Optional: Send automatic reply to new leads
- */
-async function sendAutoReply(phone, name) {
-    try {
-        const message = `Hi ${name}! 👋 Thank you for reaching out. We've received your message and will get back to you shortly.`;
-        await whatsappService.sendMessage(phone, message);
-        console.log(`✅ Auto-reply sent to ${name}`);
-    } catch (error) {
-        console.error('❌ Failed to send auto-reply:', error);
     }
 }
 
@@ -205,6 +270,7 @@ async function sendAutoReply(phone, name) {
  * Send a WhatsApp message to a lead
  */
 const sendMessage = async (req, res) => {
+    const whatsappService = require('../services/whatsappService');
     try {
         const { phone, message, leadId } = req.body;
 

@@ -9,8 +9,4 @@ router.post('/webhook/whatsapp', whatsappController.receiveMessage);
 // Send WhatsApp message
 router.post('/whatsapp/send', whatsappController.sendMessage);
 
-// Lead management endpoints
-router.get('/leads', whatsappController.getLeads);
-router.get('/leads/:id', whatsappController.getLeadDetails);
-
 module.exports = router;

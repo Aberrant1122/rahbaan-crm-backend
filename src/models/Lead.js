@@ -12,7 +12,7 @@ class Lead {
                 phone VARCHAR(50) NOT NULL UNIQUE,
                 email VARCHAR(255),
                 stage ENUM('New', 'Incoming', 'Contacted', 'Qualified', 'Proposal', 'Second Wing', 'Won', 'Lost') DEFAULT 'New',
-                source ENUM('WhatsApp', 'Website', 'Referral', 'Cold Call', 'Email', 'Social Media', 'Other') DEFAULT 'WhatsApp',
+                source ENUM('WhatsApp', 'Facebook', 'Instagram', 'Website', 'Referral', 'Cold Call', 'Email', 'Social Media', 'Other') DEFAULT 'WhatsApp',
                 last_message TEXT,
                 last_message_at TIMESTAMP NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
