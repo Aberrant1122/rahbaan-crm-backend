@@ -5,7 +5,7 @@ const axios = require('axios');
  */
 class MetaLeadService {
     constructor() {
-        this.token = process.env.WHATSAPP_TOKEN; // Reusing the same token if possible, or process.env.META_ACCESS_TOKEN
+        this.token = process.env.META_ACCESS_TOKEN || process.env.WHATSAPP_TOKEN;
         this.apiVersion = 'v22.0';
         this.baseUrl = `https://graph.facebook.com/${this.apiVersion}`;
     }
@@ -16,6 +16,30 @@ class MetaLeadService {
      * @returns {Promise<Object>} The lead details (name, email, phone, etc.)
      */
     async getLeadDetails(leadId) {
+        // Simulation mode bypass for testing without Meta Developer Console headaches
+        if (typeof leadId === 'string' && leadId.startsWith('mock_')) {
+            console.log(`🤖 Simulation Mode: Generating mock details for ${leadId}`);
+            if (leadId.includes('fb')) {
+                return {
+                    lead_id: leadId,
+                    created_time: new Date().toISOString(),
+                    platform: 'fb',
+                    name: 'Abdullah (Facebook Lead)',
+                    email: 'abdullah.fb@example.com',
+                    phone: '+923012345678'
+                };
+            } else if (leadId.includes('insta')) {
+                return {
+                    lead_id: leadId,
+                    created_time: new Date().toISOString(),
+                    platform: 'ig',
+                    name: 'Abdullah (Instagram Lead)',
+                    email: 'abdullah.ig@example.com',
+                    phone: '+923098765432'
+                };
+            }
+        }
+
         if (!this.token) {
             throw new Error('Meta Access Token not configured');
         }
