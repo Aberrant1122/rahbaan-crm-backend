@@ -6,7 +6,7 @@ const axios = require('axios');
 class MetaLeadService {
     constructor() {
         this.token = process.env.META_ACCESS_TOKEN || process.env.WHATSAPP_TOKEN;
-        this.apiVersion = 'v22.0';
+        this.apiVersion = 'v25.0';
         this.baseUrl = `https://graph.facebook.com/${this.apiVersion}`;
     }
 
