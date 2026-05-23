@@ -197,8 +197,6 @@ const startServer = async () => {
                     await Lead.createTable();
                     await Lead.createMessagesTable();
                     await Lead.createTimelineTable();
-                    await Lead.fixSourceEnum();
-                    await Lead.fixStageEnum();
 
                     // Create Tasks table
                     const Task = require('./src/models/Task');
@@ -208,6 +206,15 @@ const startServer = async () => {
                 } catch (tableError) {
                     console.warn('⚠️  Some tables may not be available:', tableError.message);
                 }
+            }
+
+            // Fix ENUMs regardless of migration status
+            try {
+                const Lead = require('./src/models/Lead');
+                await Lead.fixSourceEnum();
+                await Lead.fixStageEnum();
+            } catch (fixError) {
+                console.warn('⚠️  Could not fix ENUMs:', fixError.message);
             }
 
         }
