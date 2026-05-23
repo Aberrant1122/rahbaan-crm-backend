@@ -135,7 +135,6 @@ class Lead {
             // ignore
         }
     }
-    }
 
     /**
      * Update existing lead
