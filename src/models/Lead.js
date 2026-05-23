@@ -118,6 +118,25 @@ class Lead {
         return result.insertId;
     }
 
+    static async fixSourceEnum() {
+        const query = `ALTER TABLE leads MODIFY COLUMN source ENUM('WhatsApp', 'Facebook', 'Instagram', 'Website', 'Referral', 'Cold Call', 'Email', 'Social Media', 'Other') DEFAULT 'WhatsApp'`;
+        try {
+            await pool.query(query);
+        } catch (e) {
+            // ignore if already correct
+        }
+    }
+
+    static async fixStageEnum() {
+        const query = `ALTER TABLE leads MODIFY COLUMN stage ENUM('New', 'Incoming', 'Contacted', 'Qualified', 'Proposal', 'Second Wing', 'Won', 'Lost') DEFAULT 'New'`;
+        try {
+            await pool.query(query);
+        } catch (e) {
+            // ignore
+        }
+    }
+    }
+
     /**
      * Update existing lead
      */

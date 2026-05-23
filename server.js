@@ -197,6 +197,8 @@ const startServer = async () => {
                     await Lead.createTable();
                     await Lead.createMessagesTable();
                     await Lead.createTimelineTable();
+                    await Lead.fixSourceEnum();
+                    await Lead.fixStageEnum();
 
                     // Create Tasks table
                     const Task = require('./src/models/Task');
